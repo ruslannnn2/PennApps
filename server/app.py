@@ -264,7 +264,7 @@ with ThreadPoolExecutor(max_workers=THREADS) as executor:
             "articles": arts
         }
 
-with open("clusters.json", "w") as f:
+with open("rawdata.json", "w") as f:
     json.dump(output, f, indent=4)
 
-print(f"Saved {len(clusters)} clusters with AI-generated names to clusters.json")
+print(f"Saved {len(clusters)} clusters with AI-generated names to rawdata.json")
