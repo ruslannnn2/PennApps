@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from supabase import create_client, Client
 import os
@@ -102,7 +102,6 @@ def get_article_by_id(article_id):
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 @app.route('/api/clusters/batch', methods=["POST"])
 def create_cluster_with_articles():
     """
@@ -121,8 +120,7 @@ def create_cluster_with_articles():
                 "text": "Content...",
                 "article_summary": "Summary...",
                 "source": "Source 1"
-            },
-            ...
+            }
         ]
     }
     """
@@ -141,16 +139,14 @@ def create_cluster_with_articles():
         if not cluster_data.get('cluster_summary'):
             return jsonify({"error": "cluster_summary is required"}), 400
         
-        # Step 1: Create the cluster
+        # Create cluster
         cluster_insert_data = {
             'cluster_summary': cluster_data.get('cluster_summary')
         }
         
-        # Include cluster_id if provided
         if cluster_data.get('cluster_id'):
             cluster_insert_data['cluster_id'] = cluster_data.get('cluster_id')
         
-        # Include cluster_title if provided
         if cluster_data.get('cluster_title'):
             cluster_insert_data['cluster_title'] = cluster_data.get('cluster_title')
         
@@ -165,17 +161,15 @@ def create_cluster_with_articles():
         created_cluster = cluster_result.data[0]
         cluster_id = created_cluster.get('cluster_id')
         
-        # Step 2: Create all articles for this cluster
+        # Create articles
         created_articles = []
         if articles_data:
-            # Validate articles
             for i, article in enumerate(articles_data):
                 if not article.get('title') or not article.get('text'):
                     return jsonify({
                         "error": f"Article {i+1} missing required fields (title, text)"
                     }), 400
             
-            # Prepare articles with cluster_id
             articles_insert_data = []
             for article in articles_data:
                 article_data = {
@@ -186,26 +180,16 @@ def create_cluster_with_articles():
                     'source': article.get('source')
                 }
                 
-                # Include article_id if provided
                 if article.get('article_id'):
                     article_data['article_id'] = article.get('article_id')
                 
-                # Remove None values
                 article_data = {k: v for k, v in article_data.items() if v is not None}
                 articles_insert_data.append(article_data)
             
-            # Bulk insert articles
             articles_result = supabase.table('articles').insert(articles_insert_data).execute()
             
             if articles_result.data:
                 created_articles = articles_result.data
-            else:
-                # If articles failed, we might want to clean up the cluster
-                return jsonify({
-                    "success": False,
-                    "error": "Cluster created but failed to create articles",
-                    "cluster": created_cluster
-                }), 500
         
         return jsonify({
             "success": True,
@@ -276,7 +260,6 @@ def create_multiple_clusters_with_articles():
                         "error": f"Cluster {i+1} missing required cluster data"
                     }), 400
                 
-                # Create cluster
                 cluster_insert_data = {
                     'cluster_summary': cluster_info.get('cluster_summary')
                 }
@@ -300,17 +283,14 @@ def create_multiple_clusters_with_articles():
                 cluster_id = created_cluster.get('cluster_id')
                 total_clusters_created += 1
                 
-                # Create articles for this cluster
                 created_articles = []
                 if articles_info:
-                    # Validate articles
                     for j, article in enumerate(articles_info):
                         if not article.get('title') or not article.get('text'):
                             return jsonify({
                                 "error": f"Cluster {i+1}, Article {j+1} missing required fields"
                             }), 400
                     
-                    # Prepare articles
                     articles_insert_data = []
                     for article in articles_info:
                         article_data = {
@@ -321,14 +301,12 @@ def create_multiple_clusters_with_articles():
                             'source': article.get('source')
                         }
                         
-                        # Include article_id if provided
                         if article.get('article_id'):
                             article_data['article_id'] = article.get('article_id')
                         
                         article_data = {k: v for k, v in article_data.items() if v is not None}
                         articles_insert_data.append(article_data)
                     
-                    # Insert articles
                     articles_result = supabase.table('articles').insert(articles_insert_data).execute()
                     
                     if articles_result.data:
@@ -378,8 +356,7 @@ def add_articles_to_existing_cluster(cluster_id):
                 "text": "Content...",
                 "article_summary": "Summary...",
                 "source": "Source"
-            },
-            ...
+            }
         ]
     }
     """
@@ -394,19 +371,16 @@ def add_articles_to_existing_cluster(cluster_id):
         if not articles_data:
             return jsonify({"error": "Articles array is empty"}), 400
         
-        # Check if cluster exists
         cluster_check = supabase.table('clusters').select("cluster_id").eq('cluster_id', cluster_id).execute()
         if not cluster_check.data:
             return jsonify({"error": "Cluster not found"}), 404
         
-        # Validate articles
         for i, article in enumerate(articles_data):
             if not article.get('title') or not article.get('text'):
                 return jsonify({
                     "error": f"Article {i+1} missing required fields (title, text)"
                 }), 400
         
-        # Prepare articles data
         articles_insert_data = []
         for article in articles_data:
             article_data = {
@@ -417,14 +391,12 @@ def add_articles_to_existing_cluster(cluster_id):
                 'source': article.get('source')
             }
             
-            # Include article_id if provided
             if article.get('article_id'):
                 article_data['article_id'] = article.get('article_id')
             
             article_data = {k: v for k, v in article_data.items() if v is not None}
             articles_insert_data.append(article_data)
         
-        # Insert articles
         result = supabase.table('articles').insert(articles_insert_data).execute()
         
         if result.data:
