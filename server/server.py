@@ -104,26 +104,6 @@ def get_article_by_id(article_id):
         return jsonify({"error": str(e)}), 500
 @app.route('/api/clusters/batch', methods=["POST"])
 def create_cluster_with_articles():
-    """
-    Create a cluster and all its articles in one request
-    Expected format:
-    {
-        "cluster": {
-            "cluster_id": 1,
-            "cluster_summary": "Technology news cluster",
-            "cluster_title": "Tech News"
-        },
-        "articles": [
-            {
-                "article_id": 1,
-                "title": "Article 1",
-                "text": "Content...",
-                "article_summary": "Summary...",
-                "source": "Source 1"
-            }
-        ]
-    }
-    """
     try:
         data = request.get_json()
         
@@ -211,30 +191,6 @@ def create_cluster_with_articles():
 
 @app.route('/api/data/bulk', methods=["POST"])
 def create_multiple_clusters_with_articles():
-    """
-    Create multiple clusters, each with their sorted articles
-    Expected format:
-    {
-        "clusters": [
-            {
-                "cluster": {
-                    "cluster_id": 1,
-                    "cluster_summary": "Tech cluster",
-                    "cluster_title": "Technology"
-                },
-                "articles": [
-                    {
-                        "article_id": 1,
-                        "title": "Article 1",
-                        "text": "Content...",
-                        "article_summary": "Summary...",
-                        "source": "Source 1"
-                    }
-                ]
-            }
-        ]
-    }
-    """
     try:
         data = request.get_json()
         
@@ -345,21 +301,6 @@ def create_multiple_clusters_with_articles():
 
 @app.route('/api/clusters/<int:cluster_id>/articles/batch', methods=["POST"])
 def add_articles_to_existing_cluster(cluster_id):
-    """
-    Add multiple articles to an existing cluster
-    Expected format:
-    {
-        "articles": [
-            {
-                "article_id": 10,
-                "title": "New Article 1",
-                "text": "Content...",
-                "article_summary": "Summary...",
-                "source": "Source"
-            }
-        ]
-    }
-    """
     try:
         data = request.get_json()
         
