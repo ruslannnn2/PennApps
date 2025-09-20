@@ -20,7 +20,6 @@ def home():
 @app.route("/api/health", methods=["GET"])
 def health():
     try:
-        
         response = "hello"
         return jsonify({"status": "ok", "supabase_connected": True}), 200
     except Exception as e:

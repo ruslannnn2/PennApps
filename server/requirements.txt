@@ -5,4 +5,8 @@ faiss-cpu
 numpy
 requests
 google-generativeai
+<<<<<<< HEAD
 lxml_html_clean
+=======
+lxml_html_clean
+>>>>>>> 5818703bedde4a33de1d1e08ec537f456b26bc50
