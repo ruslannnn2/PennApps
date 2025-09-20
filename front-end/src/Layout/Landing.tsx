@@ -2,7 +2,7 @@ import GlassCard from "../components/GlassCard";
 import ForceGraph, { type NodeDatum, type LinkDatum } from "../components/forcegraph";
 import graph from "../data/graph.json"; // { nodes: [...], links: [...] }
 import Button from "../components/Button";
-import logo from "../../public/logo.png";
+import logo from "../assets/logo.png";
 
 
 type Cluster = { cluster_id: number; cluster_summary: string; cluster_title: string | null };
