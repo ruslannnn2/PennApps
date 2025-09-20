@@ -26,7 +26,7 @@ def health():
         return jsonify({"status": "error", "supabase_connected": False, "error": str(e)}), 500
 
 @app.route("/api/clusters", methods="GET")
-def getAllClusters():
+def get_all_clusters():
     try:
         result = supabase.table('clusters').select("*").execute()
         
@@ -35,6 +35,16 @@ def getAllClusters():
             "total": len(result.data)
         }), 200
     
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/clusters/<int:cluster_number>', methods=['GET'])
+def get_cluster_by_number(cluster_number):
+    try:
+        result = supabase.table('clusters').select("*").eq('cluster_number', cluster_number).execute()
+        if not result.data:
+            return jsonify({"error": "Cluster not found"}), 404
+        return jsonify({"cluster": result.data[0]}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -69,6 +79,23 @@ def get_articles_by_cluster(cluster_number):
             "cluster_summary": cluster['cluster_summary'],
             "articles": articles_result.data,
             "article_count": len(articles_result.data)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/articles/<int:article_id>', methods=['GET'])
+def get_article_by_id(article_id):
+    try:
+        result = supabase.table('articles').select(
+            "*, clusters(cluster_number, cluster_summary)"
+        ).eq('id', article_id).execute()
+        
+        if not result.data:
+            return jsonify({"error": "Article not found"}), 404
+        
+        return jsonify({
+            "article": result.data[0]
         }), 200
         
     except Exception as e:
