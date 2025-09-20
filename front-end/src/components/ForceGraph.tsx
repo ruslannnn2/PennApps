@@ -3,15 +3,22 @@ import * as d3 from "d3";
 
 export type NodeDatum = d3.SimulationNodeDatum & {
   id: string;
-  group?: string | number;
-  [key: string]: any;
+  article_summary?: string;
+  cluster_id?: number;
+  text?: string;
+  title?: string;
+  article_id?: number;
+  source?: string;
+  // component id assigned by computeComponents
+  group?: number;
+  // app-level classification for rendering
+  type?: "cluster" | "article" | string;
 };
 
 export type LinkDatum = d3.SimulationLinkDatum<NodeDatum> & {
   source: string | NodeDatum;
   target: string | NodeDatum;
   value?: number;
-  [key: string]: any;
 };
 
 type ForceGraphProps = {
@@ -22,13 +29,15 @@ type ForceGraphProps = {
   showLabels?: boolean;
   zoom?: boolean;
   nodeRadius?: number | ((d: NodeDatum) => number);
-  // When true (default), node radius scales with degree (number of connections)
+  //when true (default), node radius scales with degree (number of connections)
   sizeByDegree?: boolean;
   minRadius?: number; // min radius when sizing by degree
   maxRadius?: number; // max radius when sizing by degree
-  // Fill parent container by observing its size
+  //fill parent container by observing its size
   fitParent?: boolean;
   nodeFill?: (d: NodeDatum) => string;
+  nodeStroke?: (d: NodeDatum) => string | null | undefined;
+  nodeStrokeWidth?: (d: NodeDatum) => number | null | undefined;
   linkStroke?: string;
   chargeStrength?: number;
   linkOpacity?: number;
@@ -82,6 +91,8 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
   fitParent = true,
   chargeStrength = -30,
   nodeFill,
+  nodeStroke,
+  nodeStrokeWidth,
   linkStroke = "#FFF",
   linkOpacity = 1,
   onNodeClick,
@@ -125,15 +136,15 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .domain([0, Math.max(1, maxDeg)])
       .range([minRadius, maxRadius]);
 
-    const color = d3.scaleOrdinal(d3.schemeDark2);
+    const color = d3.scaleOrdinal(d3.schemePaired);
 
-    // Final radius function: prefer user function, else scale by degree (if enabled), else constant
+    //Final radius function: prefer user function, else scale by degree (if enabled), else constant
     const r =
       typeof nodeRadius === "function"
         ? nodeRadius
         : (d: NodeDatum) => (sizeByDegree ? degScale(degree.get(String(d.id)) ?? 0) : (nodeRadius as number));
 
-    // Root SVG
+    //root SVG
     const W = fitParent ? size.w : width;
     const H = fitParent ? size.h : height;
     if (!W || !H) return;
@@ -176,15 +187,22 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
     //nodes
     const node = g
       .append("g")
-      .attr("stroke", "")
-      .attr("stroke-width", 0.5)
+      // Per-node stroke is applied on the circle elements below
       .selectAll("circle")
       .data(N)
       .join("circle")
       .on("click", (_, d) => onNodeClick?.(d)) // click hook
       .style("cursor", "pointer")
   .attr("r", (d) => r(d))
-  .attr("fill", (d) => color(String(d.group!)));
+  .attr("fill", (d) => (nodeFill ? nodeFill(d) : color(String(d.group!))))
+  .attr("stroke", (d) => {
+    const s = nodeStroke?.(d);
+    return s ?? "";
+  })
+  .attr("stroke-width", (d) => {
+    const w = nodeStrokeWidth?.(d);
+    return (w ?? 0.5) as number;
+  });
 
     (node as d3.Selection<SVGCircleElement, NodeDatum, SVGGElement, unknown>)
       .call(
@@ -252,7 +270,7 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       simulation.stop();
       svg.remove();
     };
-  }, [nodes, links, width, height, showLabels, zoom, nodeRadius, nodeFill, linkStroke, linkOpacity, onNodeClick, chargeStrength, sizeByDegree, minRadius, maxRadius, fitParent, size.w, size.h]);
+  }, [nodes, links, width, height, showLabels, zoom, nodeRadius, nodeFill, nodeStroke, nodeStrokeWidth, linkStroke, linkOpacity, onNodeClick, chargeStrength, sizeByDegree, minRadius, maxRadius, fitParent, size.w, size.h]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 };
