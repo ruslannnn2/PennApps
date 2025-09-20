@@ -1,5 +1,6 @@
 import json
 import requests
+from collections import defaultdict
 
 # Configuration
 API_BASE_URL = "http://localhost:5000"
@@ -11,33 +12,49 @@ def upload_data():
     
     # Load the clusters.json file
     print(f"Loading {CLUSTERS_FILE}...")
-    with open(CLUSTERS_FILE, 'r') as f:
+    with open(CLUSTERS_FILE, 'r', encoding='utf-8') as f:
         clusters_data = json.load(f)
     
     # Load the articles.json file
     print(f"Loading {ARTICLES_FILE}...")
-    with open(ARTICLES_FILE, 'r') as f:
+    with open(ARTICLES_FILE, 'r', encoding='utf-8') as f:
         articles_data = json.load(f)
     
     print(f"Found {len(clusters_data)} clusters")
-    print(f"Found {len(articles_data)} article groups")
+    print(f"Found {len(articles_data)} articles")
+    
+    # Group articles by cluster_id
+    articles_by_cluster = defaultdict(list)
+    for article in articles_data:
+        cluster_id = article["cluster_id"]
+        articles_by_cluster[cluster_id].append({
+            "title": article["title"],
+            "text": article["text"],
+            "article_summary": article["article_summary"],
+            "source": article["source"]
+        })
     
     # Prepare the data for the bulk upload endpoint
     clusters_list = []
     
-    # Process clusters and match with their articles
-    for cluster_id, cluster_info in clusters_data.items():
-        # Get the corresponding articles for this cluster
-        cluster_articles = articles_data.get(cluster_id, {}).get("articles", [])
+    # Process each cluster
+    for cluster in clusters_data:
+        cluster_id = cluster["cluster_id"]
+        
+        # Get the articles for this cluster
+        cluster_articles = articles_by_cluster.get(cluster_id, [])
         
         cluster_entry = {
             "cluster": {
-                "cluster_summary": cluster_info.get("cluster_summary", ""),
-                "cluster_title": cluster_info.get("cluster_title", "")
+                "cluster_id": int(cluster_id),  # Convert string to int
+                "cluster_summary": cluster["cluster_summary"],
+                "cluster_title": cluster["cluster_title"]
             },
             "articles": cluster_articles
         }
         clusters_list.append(cluster_entry)
+        
+        print(f"  Cluster {cluster_id}: {len(cluster_articles)} articles")
     
     # Prepare the payload for bulk upload
     payload = {
@@ -45,7 +62,7 @@ def upload_data():
     }
     
     # Send to the bulk endpoint
-    print(f"\nUploading {len(clusters_list)} clusters with their articles to database...")
+    print(f"\nUploading {len(clusters_list)} clusters to database...")
     
     try:
         response = requests.post(
@@ -58,31 +75,44 @@ def upload_data():
             result = response.json()
             summary = result.get("summary", {})
             
-            print("\n✅ Upload successful!")
-            print(f"   Clusters created: {summary.get('total_clusters_created', 0)}")
-            print(f"   Articles created: {summary.get('total_articles_created', 0)}")
+            print("\nUpload successful!")
+            print(f"   Total clusters created: {summary.get('total_clusters_created', 0)}")
+            print(f"   Total articles created: {summary.get('total_articles_created', 0)}")
+            
+            # Show details for each cluster
+            results = result.get("results", [])
+            if results:
+                print("\nCluster details:")
+                for r in results:
+                    cluster_info = r.get("cluster", {})
+                    print(f"   - Cluster {cluster_info.get('cluster_id')}: {r.get('articles_count', 0)} articles uploaded")
             
         else:
-            print(f"\n❌ Upload failed with status {response.status_code}")
-            error_data = response.json()
-            error_msg = error_data.get("error", "Unknown error")
-            print(f"   Error: {error_msg}")
-            
-            # Check for partial results
-            partial = error_data.get("partial_results", [])
-            if partial:
-                print(f"   Partial success: {len(partial)} clusters uploaded before failure")
+            print(f"\nUpload failed with status {response.status_code}")
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("error", "Unknown error")
+                print(f"   Error: {error_msg}")
+                
+                # Check for partial results
+                partial = error_data.get("partial_results", [])
+                if partial:
+                    print(f"   Partial success: {len(partial)} clusters uploaded before failure")
+            except:
+                print(f"   Response: {response.text}")
             
     except requests.exceptions.ConnectionError:
-        print("\n❌ Cannot connect to Flask server!")
+        print("\nCannot connect to Flask server!")
         print("   Make sure server.py is running: python server.py")
     except FileNotFoundError as e:
-        print(f"\n❌ File not found: {e}")
-        print("   Make sure both clusters.json and articles.json exist")
+        print(f"\nFile not found: {e}")
+        print("   Make sure both clusters.json and articles.json exist in the current directory")
     except json.JSONDecodeError as e:
-        print(f"\n❌ Invalid JSON format: {e}")
+        print(f"\nInvalid JSON format: {e}")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nUnexpected error: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     upload_data()
