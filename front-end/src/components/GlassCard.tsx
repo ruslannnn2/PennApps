@@ -11,23 +11,24 @@ export default function GlassCard({ className = "", children }: GlassCardProps) 
   return (
     <div
       className={[
-        "relative rounded-3xl p-[1px]",
-        "bg-radial from-black/10 to-gray/10",
+        "relative rounded-xl p-[1px]",
+        "bg-radial from-slate-950 to-black/30 from-5%",
         className,
       ].join(" ")}
     >
       <div
         className={[
-          "relative h-full w-full rounded-[calc(1.5rem-1px)] bg-clip-padding",
-          "bg-white/5 backdrop-blur-xl backdrop-saturate-150",
-          "ring-1 ring-white/35 shadow-xl shadow-black/20",
+          "relative h-full w-full rounded-xl bg-clip-padding",
+          "bg-white/4 backdrop-blur-xl backdrop-saturate-90",
+          "inset-shadow-sm inset-shadow-slate-500/50 shadow-sm shadow-slate-600",
+
         ].join(" ")}
       >
         <div
           className={[
-            "pointer-events-none absolute inset-0 rounded-[inherit]",
+            "pointer-events-none absolute inset-0 rounded-md",
             "before:content-[''] before:absolute before:inset-x-10 before:top-6",
-            "before:h-16 before:rounded-2xl before:bg-white/15 before:blur-xl before:opacity-15",
+            "before:h-16 before:rounded-md before:bg-white/15 before:blur-xl before:opacity-15",
           ].join(" ")}
         />
 
