@@ -82,8 +82,8 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
   fitParent = true,
   chargeStrength = -30,
   nodeFill,
-  linkStroke = "#999",
-  linkOpacity = 0.6,
+  linkStroke = "#FFF",
+  linkOpacity = 1,
   onNodeClick,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -125,7 +125,7 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .domain([0, Math.max(1, maxDeg)])
       .range([minRadius, maxRadius]);
 
-    const color = d3.scaleOrdinal(d3.schemeCategory10);
+    const color = d3.scaleOrdinal(d3.schemeDark2);
 
     // Final radius function: prefer user function, else scale by degree (if enabled), else constant
     const r =
@@ -150,18 +150,20 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
 
     // Zoomable group
     const g = svg.append("g");
-    if (zoom) {
-      svg.call(
-        d3
-          .zoom<SVGSVGElement, unknown>()
-          .scaleExtent([0.1, 8])
-          .on("zoom", (event) => {
-            g.attr("transform", event.transform.toString());
-          })
-      );
-    }
+    
+    const zoomBehavior = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 8])
+      .on("zoom", (event) => g.attr("transform", event.transform.toString()));
 
-    // Links
+    svg.call(zoomBehavior);
+
+   
+    const k = 1.5;        //zoom scale
+    const tx = 0, ty = 0;  // set the x, y of initial viewport
+    svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
+
+    //links
     const link = g
       .append("g")
       .attr("stroke", linkStroke)
@@ -171,15 +173,15 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .join("line")
       .attr("stroke-width", (d) => Math.sqrt(d.value ?? 1));
 
-    // Nodes
+    //nodes
     const node = g
       .append("g")
-      .attr("stroke", "#fff")
+      .attr("stroke", "")
       .attr("stroke-width", 0.5)
       .selectAll("circle")
       .data(N)
       .join("circle")
-      .on("click", (_, d) => onNodeClick?.(d)) // <-- click hook
+      .on("click", (_, d) => onNodeClick?.(d)) // click hook
       .style("cursor", "pointer")
   .attr("r", (d) => r(d))
   .attr("fill", (d) => color(String(d.group!)));
