@@ -1,5 +1,5 @@
 python-dotenv
-newspaper3k
+newspaper4k
 sentence-transformers
 faiss-cpu
 numpy
