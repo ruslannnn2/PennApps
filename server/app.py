@@ -5,27 +5,24 @@ os.environ["OMP_NUM_THREADS"] = "1"
 from dotenv import load_dotenv
 load_dotenv()
 
+import feedparser
 import newspaper
-from newspaper import Article
-from sentence_transformers import SentenceTransformer
+from newspaper import Article, Config, ArticleException, ArticleBinaryDataException
 import faiss
 import numpy as np
 import warnings
-from newspaper import Config, ArticleException, ArticleBinaryDataException
 import requests
-import google.generativeai as genai 
+import google.generativeai as genai
 import json
 from openai import OpenAI
+from datetime import datetime, timedelta, timezone
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-
-
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-# NEW: Configure the Gemini API with your key
+# --- Gemini key check ---
 try:
-    # Replace with your actual API key
     genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 except AttributeError:
     print("="*50)
@@ -42,76 +39,116 @@ config.browser_user_agent = (
 )
 
 
-# --- OpenAI Summary Function (REPLACED) ---
+#  RSS integration part  
+
+
+### NEW: constants and helper
+CUTOFF = datetime.now(timezone.utc) - timedelta(hours=72)
+RSS_FEEDS = {
+    "CNN": "http://rss.cnn.com/rss/cnn_latest.rss",
+    "Guardian": "https://www.theguardian.com/world/rss",
+    "NYPost": "https://nypost.com/feed/",
+    "BBC": "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "Politico": "https://rss.politico.com/politics-news.xml",
+    "Politico - Congress": "https://rss.politico.com/congress.xml",
+    "AlJazeera": "https://www.aljazeera.com/xml/rss/all.xml",
+    "Fox": "https://feeds.foxnews.com/foxnews/latest"
+}
+
+
+def collect_from_rss(src, url):
+    feed = feedparser.parse(url)
+    results = []
+    for e in feed.entries:
+        pub = e.get("published_parsed") or e.get("updated_parsed")
+        if not pub:
+            continue
+        if datetime(*pub[:6], tzinfo=timezone.utc) < CUTOFF:
+            continue
+        try:
+            art = Article(e.link, config=config)
+            art.download()
+            art.parse()
+            if len(art.text.strip()) >= 120:
+                results.append((src, art.title, e.link, art.text))
+        except (ArticleException, Exception):
+            continue
+    return results
+
+
+# --- OpenAI Summary ---
 def generate_summary(text, prompt_type="article"):
-    """Generates a summary for a given text using the OpenAI API."""
-    
     if not text or not isinstance(text, str) or len(text.strip()) < 100:
         return "Not enough content to summarize."
 
-    system_prompt = ""
-    user_prompt = ""
-
     if prompt_type == "article":
         system_prompt = "You are a helpful assistant that summarizes news articles concisely."
-        user_prompt = f"Summarize the following news article in 2-3 concise sentences, focusing on the main points:\n\n---\n{text}\n---\n\nSummary:"
-    else:  # for clusters
+        user_prompt = (
+            f"Summarize the following news article in 2-3 concise sentences, focusing on the main points:\n\n---\n{text}\n---\n\nSummary:"
+        )
+    else:
         system_prompt = "You are a helpful assistant that synthesizes information from multiple article summaries into a coherent overview."
-        user_prompt = f"The following are summaries from multiple news articles covering the same event. Synthesize them into a single, comprehensive overview of 3-4 sentences. Identify the core event and any significant variations or agreements between the sources:\n\n---\n{text}\n---\n\nOverall Summary:"
+        user_prompt = (
+            f"The following are summaries from multiple news articles covering the same event. "
+            f"Synthesize them into a single, comprehensive overview of 3-4 sentences. "
+            f"Identify the core event and any significant variations or agreements:\n\n---\n{text}\n---\n\nOverall Summary:"
+        )
 
     try:
-        response = client.chat.completions.create(
-            # Using a fast and cost-effective model
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            temperature=0.5, # A bit of creativity but still factual
+            temperature=0.5,
             max_tokens=200,
         )
-        return response.choices[0].message.content.strip()
+        return resp.choices[0].message.content.strip()
     except Exception as e:
-        return f"An error occurred during OpenAI summary generation: {e}"
+        return f"OpenAI summary error: {e}"
 
 
+# Collect Articles     
 
-# --- Build newspapers ---
+
+articles = []
+article_info = []      # (source, title, url)
+article_details = {}   # maps identifier -> {text, summary}
+
+### NEW: First, get articles via RSS
+print("\n=== Fetching articles via RSS ===")
+for src, url in RSS_FEEDS.items():
+    print(f"Fetching {src} …")
+    items = collect_from_rss(src, url)
+    print(f"  -> {len(items)} articles")
+    for (s, title, link, text) in items:
+        summary = generate_summary(text)
+        ident = (s, title, link)
+        articles.append(text)
+        article_info.append(ident)
+        article_details[ident] = {"text": text, "summary": summary}
+
+
+### CHANGED: Still allow newspaper.build scraping if needed
 sources = {
     "CNN": "https://www.cnn.com",
     "Guardian": "https://www.theguardian.com",
     "NYT": "https://www.nytimes.com",
-    "NY Post": "https://nypost.com"
+    "NY Post": "https://nypost.com",
 }
 
-# Limit number of articles per source for demo / speed
 MAX_ARTICLES = 2000
 
-# Fetch articles from each newspaper
-articles = []
-article_info = []  # store (source, title, url) for each article
-article_details = {} # NEW: maps identifier tuple to its text and summary
-
-
-for source_name, url in sources.items():
-    print(f"\nBuilding {source_name}…")
+print("\n=== Building newspapers ===")
+for name, url in sources.items():
+    print(f"\nBuilding {name} …")
     try:
-        # Use requests to fetch the homepage (with UA)
-        resp = requests.get(
-            url,
-            headers={"User-Agent": config.browser_user_agent},
-            timeout=30,
-        )
-        resp.raise_for_status()
-
-        paper = newspaper.build(
-            url,
-            config=config,
-            memoize_articles=False,
-            input_html=resp.text,  # pass HTML we just fetched
-        )
+        r = requests.get(url, headers={"User-Agent": config.browser_user_agent}, timeout=30)
+        r.raise_for_status()
+        paper = newspaper.build(url, config=config, memoize_articles=False, input_html=r.text)
     except Exception as e:
-        print(f"  [!] Could not build {source_name}: {e}")
+        print(f"  [!] Could not build {name}: {e}")
         continue
 
     count = 0
@@ -122,120 +159,86 @@ for source_name, url in sources.items():
             art.download()
             art.parse()
             if len(art.text.strip()) > 100:
-                print(f"  -> Summarizing '{art.title[:50]}...' with OpenAI")
-                summary = generate_summary(art.text, prompt_type="article")
-                
-                identifier = (source_name, art.title, art.url)
+                summary = generate_summary(art.text)
+                ident = (name, art.title, art.url)
                 articles.append(art.text)
-                article_info.append(identifier)
-                article_details[identifier] = {
-                    "text": art.text,
-                    "summary": summary
-                }
-            else:
-                print("  -> Skipped: Not enough text content found after parsing.")
-            count+=1
-
+                article_info.append(ident)
+                article_details[ident] = {"text": art.text, "summary": summary}
+                count += 1
         except (ArticleException, ArticleBinaryDataException):
             continue
         except Exception as e:
-            print(f"  Skipped article: {e}")
+            print(f"  Skipped: {e}")
             continue
 
-    print(f"  Collected {count} good articles from {source_name}")
+    print(f"  Collected {count} articles from {name}")
 
-print(f"\nTotal articles collected: {len(articles)}")
+print(f"\nTotal articles gathered: {len(articles)}")
+
+# END ARTICLE GATHERING
+
+# START CLUSTERING
 
 
-# --- Encode & normalize ---
+# --- Prepare structured articles for embeddings ---
+structured_articles = []
+for ident in article_info:  # ident = (source, title, url)
+    info = article_details[ident]
+    structured_articles.append({
+        "title": ident[1],
+        "summary": info["summary"],
+        "source": ident[0],
+        "text": info["text"]
+    })
+
+# --- Embeddings + Clustering ---
+from sentence_transformers import SentenceTransformer
+from sklearn.cluster import AgglomerativeClustering
+import numpy as np
+from collections import defaultdict
+
 model = SentenceTransformer("all-MiniLM-L6-v2")
-embeddings = []
-for text in articles:
-    vec = model.encode(text, convert_to_numpy=True)
-    embeddings.append(vec)
 
-embeddings = np.stack(embeddings)
-embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True)
+texts = [a["summary"] for a in structured_articles]
+embs = model.encode(texts)
 
-# --- Build FAISS index ---
-dim = embeddings.shape[1]
-index = faiss.IndexFlatIP(dim)
-index.add(embeddings)
+clustering = AgglomerativeClustering(
+    n_clusters=None,        # let algorithm decide
+    distance_threshold=1.2, # adjust for topic tightness
+    linkage="average"
+).fit(embs)
 
-# --- Cross similarity matrix ---
-sims, idxs = index.search(embeddings, k=len(articles))  # each article vs all others
+labels = clustering.labels_
 
-# --- Create dictionary of similarities ---
-similarity_dict = {}
-for i, info_i in enumerate(article_info):
-    similarity_dict[info_i] = []
-    for j, info_j in enumerate(article_info):
-        if i != j and sims[i, j] >= 0.70:  # threshold for clustering
-            similarity_dict[info_i].append((info_j, sims[i, j]))
+# --- Build clusters ---
+clusters = defaultdict(list)
+for art, label in zip(structured_articles, labels):
+    clusters[label].append(art)
 
-# --- Cluster articles based on similarity >= 0.75 ---
-clusters = []
-visited = set()
+# --- Keep only one article per source per cluster ---
+unique_by_source = {}
+for cid, arts in clusters.items():
+    keep = {}
+    for a in arts:
+        if a["source"] not in keep:
+            keep[a["source"]] = a
+    unique_by_source[cid] = list(keep.values())
+clusters = unique_by_source
 
-for idx, key in enumerate(article_info):
-    if key in visited:
-        continue
-    cluster = [key]
-    visited.add(key)
-    to_check = [key]
-    while to_check:
-        current = to_check.pop()
-        for neighbor, score in similarity_dict.get(current, []):
-            if neighbor not in visited:
-                cluster.append(neighbor)
-                visited.add(neighbor)
-                to_check.append(neighbor)
-    clusters.append(cluster)
+# --- Summarize each cluster using OpenAI ---
+def summarize(text):
+    return generate_summary(text, prompt_type="cluster")
 
-# --- Generate JSON Output ---
-print("\nBuilding final JSON structure...")
-output_data = {}
+output = {}
+for idx, arts in clusters.items():
+    cluster_text = " ".join(a["summary"] for a in arts)
+    cluster_summary = summarize(cluster_text)
+    output[f"Cluster {idx+1}"] = {
+        "Summary of Cluster": cluster_summary,
+        "Articles": arts
+    }
 
-for i, cluster in enumerate(clusters, 1):
-    # We'll only output actual clusters (more than 1 article)
-    if len(cluster) > 1:
-        cluster_key = f"Cluster {i}"
-        
-        # --- 1. Generate the cluster-level summary ---
-        cluster_summaries = [article_details[identifier]["summary"] for identifier in cluster]
-        combined_summaries = "\n".join(f"- {s}" for s in cluster_summaries)
-        cluster_overview = generate_summary(combined_summaries, prompt_type="cluster")
+with open("clusters.json", "w") as f:
+    json.dump(output, f, indent=4)
 
-        # --- 2. Build the dictionary of articles for this cluster ---
-        articles_in_cluster = {}
-        for identifier in cluster:
-            # identifier is a tuple: (source, title, url)
-            title = identifier[1]
-            details = article_details[identifier]
-            
-            articles_in_cluster[title] = {
-                "text of article": details["text"],
-                "summary of article": details["summary"]
-            }
-        
-        # --- 3. Add the complete cluster data to our main dictionary ---
-        output_data[cluster_key] = {
-            "Summary of Clusters": cluster_overview,
-            "Articles": articles_in_cluster
-        }
-
-# --- 4. Write the dictionary to a JSON file ---
-file_path = 'clusters.json'
-with open(file_path, 'w', encoding='utf-8') as f:
-    json.dump(output_data, f, indent=4, ensure_ascii=False)
-
-print(f"\nSuccessfully wrote {len(output_data)} clusters to '{file_path}'")
-
-
-
-
-
-
-
-
-
+print(f"Saved {len(clusters)} clusters to clusters.json")
