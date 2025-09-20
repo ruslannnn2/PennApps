@@ -33,8 +33,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- OpenAI Setup ---
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-
-
 # --- Gemini key check ---
 try:
     genai.configure(api_key=os.environ["GEMINI_API_KEY"])
@@ -132,7 +130,7 @@ def generate_summary(text, prompt_type="article"):
     except Exception as e:
         return f"OpenAI summary error: {e}"
 
-# Fetch RSS Articles with Multithreading 
+# --- 1️⃣ Fetch RSS Articles with Multithreading ---
 articles = []
 article_info = []      # (source, title, url)
 article_details = {}   # identifier -> {text, summary}
@@ -153,7 +151,7 @@ with ThreadPoolExecutor(max_workers=THREADS) as executor:
 
 print(f"RSS fetched: {len(articles)} articles collected.")
 
-# Build Newspaper Sources
+# --- 2️⃣ Build Newspaper Sources ---
 print("\n=== Building newspaper sources ===")
 papers = []
 for name, url in NEWSPAPER_SOURCES.items():
@@ -165,7 +163,7 @@ for name, url in NEWSPAPER_SOURCES.items():
     except Exception as e:
         print(f"Could not build {name}: {e}")
 
-# Multithreaded Newspaper Download
+# --- 3️⃣ Multithreaded Newspaper Download ---
 fetch_news(papers, threads=THREADS)
 
 for paper in papers:
@@ -188,7 +186,7 @@ for paper in papers:
 
 print(f"Total articles gathered: {len(articles)}")
 
-# Prepare  Articles for Clustering
+# --- 4️⃣ Prepare Structured Articles for Clustering ---
 structured_articles = []
 for ident in article_info:
     info = article_details[ident]
@@ -199,7 +197,7 @@ for ident in article_info:
         "text": info["text"],
     })
 
-# Embeddings + Clustering 
+# --- 5️⃣ Embeddings + Clustering ---
 model = SentenceTransformer("all-MiniLM-L6-v2")
 texts = [a["article_summary"] for a in structured_articles]
 embs = model.encode(texts)
@@ -212,7 +210,7 @@ clustering = AgglomerativeClustering(
 
 labels = clustering.labels_
 
-# Build Clusters 
+# --- 6️⃣ Build Clusters (one article per source per cluster) ---
 clusters = defaultdict(list)
 for art, label in zip(structured_articles, labels):
     clusters[label].append(art)
@@ -226,40 +224,19 @@ for cid, arts in clusters.items():
     unique_by_source[cid] = list(keep.values())
 clusters = unique_by_source
 
-# Multithreaded Cluster Summarization
-def summarize_and_name_cluster(arts):
-    """Generate cluster summary and a meaningful cluster name from it."""
+# --- 7️⃣ Multithreaded Cluster Summarization ---
+def summarize_cluster(arts):
     cluster_text = " ".join(a["article_summary"] for a in arts)
-    summary = generate_summary(cluster_text, prompt_type="cluster")
+    return generate_summary(cluster_text, prompt_type="cluster")
 
-    # Generate a concise cluster name using OpenAI
-    name_prompt = f"Create a short, descriptive title (3-5 words) for the following news summary:\n\n{summary}"
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that creates concise titles."},
-                {"role": "user", "content": name_prompt},
-            ],
-            temperature=0.3,
-            max_tokens=20
-        )
-        cluster_name = resp.choices[0].message.content.strip()
-    except Exception as e:
-        cluster_name = summary.split()[:5]  # fallback: first 5 words
-        cluster_name = " ".join(cluster_name)
-
-    return summary, cluster_name
-
-# Execute in parallel
 output = {}
 with ThreadPoolExecutor(max_workers=THREADS) as executor:
-    futures = {executor.submit(summarize_and_name_cluster, arts): arts for arts in clusters.values()}
+    futures = {executor.submit(summarize_cluster, arts): arts for arts in clusters.values()}
     for idx, future in enumerate(as_completed(futures), 1):
         arts = futures[future]
-        cluster_summary, cluster_name = future.result()
+        cluster_summary = future.result()
         output[str(idx)] = {
-            "cluster_name": cluster_name,
+            "cluster_name": " ".join(cluster_summary.split()[:5]),
             "cluster_summary": cluster_summary,
             "articles": arts
         }
@@ -267,4 +244,4 @@ with ThreadPoolExecutor(max_workers=THREADS) as executor:
 with open("clusters.json", "w") as f:
     json.dump(output, f, indent=4)
 
-print(f"Saved {len(clusters)} clusters with AI-generated names to clusters.json")
+print(f"Saved {len(clusters)} clusters to clusters.json")
