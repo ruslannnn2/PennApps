@@ -6,6 +6,7 @@ import Button from "../components/Button";
 import logo from "../assets/logo.png";
 import ArticleCard from "../components/ArticleCard";
 import ClusterCard from "../components/ClusterCard";
+import Carousel from "../components/Carousel";
 
 
 type Cluster = { cluster_id: number; cluster_summary: string; cluster_title: string | null };
@@ -133,16 +134,23 @@ const Landing = () => {
               <div className="flex flex-col gap-2 pr-1 no-scrollbar">
                 {clusters.map((cluster) => {
                   const active = selectedClusters.has(cluster.cluster_id);
+                  const textColor = active ? "#FFFFFF" : clusterColor(cluster.cluster_id);
                   return (
                     <Button
                       key={cluster.cluster_id}
                       className={[
-                        "mix-blend-multiply text-white",
+                        "mix-blend-multiply text-semibold",
                         active ? "bg-white/20 ring-2 ring-white shadow-white/30" : "bg-black/10",
                       ].join(" ")}
                       onClick={() => toggleCluster(cluster.cluster_id)}
                     >
-                      {cluster.cluster_title ?? `Cluster ${cluster.cluster_id}`}
+                      <span
+                        style={{
+                          color: textColor as string,
+                        }}
+                      >
+                        {cluster.cluster_title ?? `Cluster ${cluster.cluster_id}`}
+                      </span>
                     </Button>
                   );
                 })}
@@ -150,49 +158,76 @@ const Landing = () => {
             </div>
           </GlassCard>
         </div>
-
-        <GlassCard className="w-[min(60vw,1020px)] h-[min(96vh,960px)] flex-1 overflow-hidden">
-          {error ? (
-            <div className="p-4 text-red-400">{error}</div>
-          ) : loading ? (
-            <div className="p-4 text-gray-300">Loading graph…</div>
-          ) : (
-            <ForceGraph
-              nodes={nodes}
-              links={links}
-              chargeStrength={-60}
-              width={1100}
-              height={1000}
-              onNodeClick={(node) => setFocusedNode(node)}
-              showLabels={false}
-              zoom
-              // Color clusters: white when selected, else schemeDark2; articles use a soft blue
-              nodeFill={(d) =>
-                d.type === "cluster"
-                  ? (selectedClusters.has(d.cluster_id as number) ? "#FFFFFF" : clusterColor(d.cluster_id))
-                  : "#6C8AE4"
-              }
-              // thick red outline for selected clusters
-              nodeStroke={(d) =>
-                d.type === "cluster" && selectedClusters.has(d.cluster_id as number)
-                  ? "#ff3333"
-                  : undefined
-              }
-              nodeStrokeWidth={(d) =>
-                d.type === "cluster" && selectedClusters.has(d.cluster_id as number)
-                  ? 3
-                  : 0.5
-              }
-              //cluster nodes slightly smaller than before
-              nodeRadius={(d) => (d.type === "cluster" ? 12 : 6)}
-              sizeByDegree={false}
-            />
-          )}
-        </GlassCard>
+                
+                <div className="flex-1 flex-col items-center justify-center ">
+                    {/* Middle column with two stacked cards */}
+                    <div className="w-[min(60vw,1020px)] h-[min(96vh,960px)] flex flex-col gap-4">
+                        <GlassCard className="flex-[3] min-h-0 overflow-hidden">
+                            {error ? (
+                                <div className="p-4 text-red-400">{error}</div>
+                            ) : loading ? (
+                                <div className="p-4 text-gray-300">Loading graph…</div>
+                            ) : (
+                                <ForceGraph
+                                    nodes={nodes}
+                                    links={links}
+                                    chargeStrength={-60}
+                                    width={1100}
+                                    height={1000}
+                                    onNodeClick={(node) => setFocusedNode(node)}
+                                    showLabels={false}
+                                    zoom
+                                    // Color clusters: white when selected, else schemeDark2; articles use a soft blue
+                                    nodeFill={(d) =>
+                                        d.type === "cluster"
+                                            ? (selectedClusters.has(d.cluster_id as number) ? "#FFFFFF" : clusterColor(d.cluster_id))
+                                            : "#6C8AE4"
+                                    }
+                                    // thick red outline for selected clusters
+                                    nodeStroke={(d) =>
+                                        d.type === "cluster" && selectedClusters.has(d.cluster_id as number)
+                                            ? "#ff3333"
+                                            : undefined
+                                    }
+                                    nodeStrokeWidth={(d) =>
+                                        d.type === "cluster" && selectedClusters.has(d.cluster_id as number)
+                                            ? 3
+                                            : 0.5
+                                    }
+                                    //cluster nodes slightly smaller than before
+                                    nodeRadius={(d) => (d.type === "cluster" ? 12 : 6)}
+                                    sizeByDegree={false}
+                                />
+                            )}
+                        </GlassCard>
+                        <GlassCard className="flex-[0.8] min-h-0 overflow-hidden">
+                            <div className="w-full h-full">
+                              <Carousel
+                                items={articles.map((a) => ({ id: a.article_id, title: a.title ?? null, source: a.source ?? null }))}
+                                durationSeconds={270}
+                                onItemClick={(it) => {
+                                  const art = articles.find((a) => a.article_id === it.id);
+                                  if (!art) return;
+                                  const node: NodeDatum = {
+                                    id: `article-${art.article_id}`,
+                                    type: "article",
+                                    article_id: art.article_id,
+                                    title: art.title,
+                                    source: art.source,
+                                    article_summary: art.article_summary,
+                                    cluster_id: art.cluster_id,
+                                  };
+                                  setFocusedNode(node);
+                                }}
+                              />
+                            </div>
+                        </GlassCard>
+                    </div>
+                </div>
 
         {/*selection deets*/}
-        <GlassCard className="w-[min(36vw,420px)] h-[min(96vh,960px)] overflow-auto no-scrollbar">
-          <div className="p-4 space-y-4">
+        <GlassCard className="w-[min(36vw,420px)] h-[min(96vh,960px)] min-h-0 overflow-hidden flex flex-col">
+          <div className="p-4 space-y-4 h-full overflow-auto no-scrollbar">
             {!focusedNode ? (
               <div className="text-white/60  text-center">Select a node to see details.</div>
             ) : focusedNode.type === "article" ? (

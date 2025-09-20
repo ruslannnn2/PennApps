@@ -20,7 +20,7 @@ export default function GlassCard({ className = "", children }: GlassCardProps) 
         className={[
           "relative h-full w-full rounded-xl bg-clip-padding",
           "bg-white/4 backdrop-blur-xl backdrop-saturate-90",
-          "inset-shadow-sm inset-shadow-slate-500/50",
+          "inset-shadow-sm inset-shadow-slate-500/50 shadow-sm shadow-slate-600",
 
         ].join(" ")}
       >

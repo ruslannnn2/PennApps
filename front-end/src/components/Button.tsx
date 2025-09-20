@@ -10,11 +10,8 @@ export default function Button({ className = "", children, ...props }: ButtonPro
       className={[
         "inline-flex items-center text-left gap-2 rounded-xl px-4 py-2 text-md",
         "bg-black/10 backdrop-blur-lg backdrop-saturate-150",
-        " border-white/20 shadow hover:bg-slate-800 active:bg-white/20 transition-all duration-300 hover:translate-x-0.5",
-        "hover:shadow-xs active:shadow-none shadow-slate-900",
-        "focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-black/20 ",
-
-        "disabled:opacity-50 disabled:pointer-events-none",
+        " border-white/20 shadow hover:bg-slate-800 active:bg-white/20 transition-all duration-300 hover:translate-x-2",
+        "hover:shadow-xs active:shadow-slate-500 shadow-slate-600",
         className,
       ].join(" ")}
       {...props}

@@ -136,7 +136,7 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .domain([0, Math.max(1, maxDeg)])
       .range([minRadius, maxRadius]);
 
-    const color = d3.scaleOrdinal(d3.schemePaired);
+    const color = d3.scaleOrdinal(d3.schemeDark2);
 
     //Final radius function: prefer user function, else scale by degree (if enabled), else constant
     const r =
@@ -164,13 +164,13 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
     
     const zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 8])
+      .scaleExtent([1, 8])
       .on("zoom", (event) => g.attr("transform", event.transform.toString()));
 
     svg.call(zoomBehavior);
 
    
-    const k = 1.5;        //zoom scale
+    const k = 1;        //zoom scale
     const tx = 0, ty = 0;  // set the x, y of initial viewport
     svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
 

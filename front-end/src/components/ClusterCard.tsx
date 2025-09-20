@@ -10,7 +10,7 @@ export type ClusterCardProps = {
 const ClusterCard: React.FC<ClusterCardProps> = ({ title, summary, articles = [] }) => {
   return (
     <div className="w-full space-y-4">
-      <div className="rounded-xl border border-white/15 bg-black/20 p-4 text-blue-400">
+      <div className="rounded-xl shadow-md shadow-slate-600 bg-black/20 p-4 text-blue-400">
         <h2 className="text-xl font-semibold mb-1">{title ?? "Untitled Cluster"}</h2>
         <p className="text-sm leading-relaxed text-white/90 whitespace-pre-line">
           {summary ?? "No summary available for this cluster."}

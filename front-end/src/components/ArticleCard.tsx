@@ -8,7 +8,7 @@ export type ArticleCardProps = {
 
 const ArticleCard: React.FC<ArticleCardProps> = ({ title, source, summary }) => {
   return (
-    <div className="w-full rounded-xl border border-white/15 bg-black/20 p-4 text-white/90">
+    <div className="w-full rounded-xl shadow-md shadow-slate-600 bg-black/20 p-4 text-white/90">
       <h3 className="text-lg font-semibold mb-1">{title ?? "Untitled Article"}</h3>
       {source ? (
         <div className="text-xs text-blue-400 mb-3">Source: {source}</div>
