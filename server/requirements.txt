@@ -6,3 +6,4 @@ numpy
 requests
 google-generativeai
 lxml_html_clean
+openai
