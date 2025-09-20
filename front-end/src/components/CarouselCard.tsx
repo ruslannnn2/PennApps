@@ -12,7 +12,7 @@ const CarouselCard: React.FC<ArticleCardProps> = ({ title, source, className }) 
       className={[
         "rounded-xl bg-black/20 text-white/90",
         "px-4 py-3 shadow-md shadow-slate-600",
-        "flex flex-col min-w-[240px] max-w-[360px]",
+        "flex flex-col min-w-[360px] max-w-[360px]",
         " hover:bg-slate-800 hover:translate-y-[-5px] hover:shadow-slate-500 transition-all duration-300",
         className ?? "",
       ].join(" ")}

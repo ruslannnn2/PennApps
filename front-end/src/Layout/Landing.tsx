@@ -200,11 +200,11 @@ const Landing = () => {
                                 />
                             )}
                         </GlassCard>
-                        <GlassCard className="flex-[0.8] min-h-0 overflow-hidden">
+                        <GlassCard className="flex-[0.6] min-h-0 overflow-hidden">
                             <div className="w-full h-full">
                               <Carousel
                                 items={articles.map((a) => ({ id: a.article_id, title: a.title ?? null, source: a.source ?? null }))}
-                                durationSeconds={270}
+                                durationSeconds={360}
                                 onItemClick={(it) => {
                                   const art = articles.find((a) => a.article_id === it.id);
                                   if (!art) return;
@@ -226,7 +226,7 @@ const Landing = () => {
                 </div>
 
         {/*selection deets*/}
-        <GlassCard className="w-[min(36vw,420px)] h-[min(96vh,960px)] min-h-0 overflow-hidden flex flex-col">
+        <GlassCard className="w-[min(36vw,500px)] h-[min(96vh,960px)] min-h-0 overflow-hidden flex flex-col">
           <div className="p-4 space-y-4 h-full overflow-auto no-scrollbar">
             {!focusedNode ? (
               <div className="text-white/60  text-center">Select a node to see details.</div>

@@ -49,7 +49,7 @@ const Carousel: React.FC<CarouselProps> = ({ items, durationSeconds = 40, classN
             {items.map((it) => (
               <button
                 key={`a-${it.id}`}
-                className="flex-shrink-0 min-w-[260px] max-w-[360px] text-left focus:outline-none"
+                className="flex-shrink-0 min-w-[360px] max-w-[360px] text-left focus:outline-none"
                 onClick={() => onItemClick?.(it)}
               >
                 <CarouselCard title={it.title} source={it.source} />
@@ -60,7 +60,7 @@ const Carousel: React.FC<CarouselProps> = ({ items, durationSeconds = 40, classN
             {items.map((it) => (
               <button
                 key={`b-${it.id}`}
-                className="flex-shrink-0 min-w-[260px] max-w-[360px] text-left focus:outline-none"
+                className="flex-shrink-0 min-w-[360px] max-w-[360px] text-left focus:outline-none"
                 onClick={() => onItemClick?.(it)}
               >
                 <CarouselCard title={it.title} source={it.source} />
