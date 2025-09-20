@@ -1,7 +1,8 @@
 python-dotenv
-newspaper3k
+newspaper4k
 sentence-transformers
 faiss-cpu
 numpy
 requests
 google-generativeai
+lxml_html_clean
