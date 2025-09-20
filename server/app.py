@@ -15,7 +15,9 @@ from newspaper import Config, ArticleException, ArticleBinaryDataException
 import requests
 import google.generativeai as genai 
 import json
+from openai import OpenAI
 
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
 
@@ -40,28 +42,37 @@ config.browser_user_agent = (
 )
 
 
-# NEW: Function to generate summaries using the Gemini API
+# --- OpenAI Summary Function (REPLACED) ---
 def generate_summary(text, prompt_type="article"):
-    """Generates a summary for a given text using the Gemini API."""
-    model = genai.GenerativeModel('gemini-pro')
+    """Generates a summary for a given text using the OpenAI API."""
     
     if not text or not isinstance(text, str) or len(text.strip()) < 100:
         return "Not enough content to summarize."
 
+    system_prompt = ""
+    user_prompt = ""
+
     if prompt_type == "article":
-        prompt = f"Summarize the following news article in 2-3 concise sentences, focusing on the main points:\n\n---\n{text}\n---\n\nSummary:"
+        system_prompt = "You are a helpful assistant that summarizes news articles concisely."
+        user_prompt = f"Summarize the following news article in 2-3 concise sentences, focusing on the main points:\n\n---\n{text}\n---\n\nSummary:"
     else:  # for clusters
-        prompt = f"The following are summaries from multiple news articles covering the same event. Synthesize them into a single, comprehensive overview of 3-4 sentences. Identify the core event and any significant variations or agreements between the sources:\n\n---\n{text}\n---\n\nOverall Summary:"
+        system_prompt = "You are a helpful assistant that synthesizes information from multiple article summaries into a coherent overview."
+        user_prompt = f"The following are summaries from multiple news articles covering the same event. Synthesize them into a single, comprehensive overview of 3-4 sentences. Identify the core event and any significant variations or agreements between the sources:\n\n---\n{text}\n---\n\nOverall Summary:"
 
     try:
-        response = model.generate_content(prompt, safety_settings={'HARM_CATEGORY_HARASSMENT':'block_none'})
-        # Check for valid response data before returning
-        if response.parts:
-            return response.text.strip()
-        else:
-            return "Summary could not be generated (response was empty or blocked)."
+        response = client.chat.completions.create(
+            # Using a fast and cost-effective model
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.5, # A bit of creativity but still factual
+            max_tokens=200,
+        )
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"An error occurred during summary generation: {e}"
+        return f"An error occurred during OpenAI summary generation: {e}"
 
 
 
@@ -74,7 +85,7 @@ sources = {
 }
 
 # Limit number of articles per source for demo / speed
-MAX_ARTICLES = 200
+MAX_ARTICLES = 2000
 
 # Fetch articles from each newspaper
 articles = []
@@ -111,8 +122,7 @@ for source_name, url in sources.items():
             art.download()
             art.parse()
             if len(art.text.strip()) > 100:
-                # NEW: Generate and store summary for each article
-                print(f"  Summarizing '{art.title[:50]}...'")
+                print(f"  -> Summarizing '{art.title[:50]}...' with OpenAI")
                 summary = generate_summary(art.text, prompt_type="article")
                 
                 identifier = (source_name, art.title, art.url)
@@ -122,7 +132,9 @@ for source_name, url in sources.items():
                     "text": art.text,
                     "summary": summary
                 }
-                count += 1
+            else:
+                print("  -> Skipped: Not enough text content found after parsing.")
+            count+=1
 
         except (ArticleException, ArticleBinaryDataException):
             continue
@@ -158,7 +170,7 @@ similarity_dict = {}
 for i, info_i in enumerate(article_info):
     similarity_dict[info_i] = []
     for j, info_j in enumerate(article_info):
-        if i != j and sims[i, j] >= 0.75:  # threshold for clustering
+        if i != j and sims[i, j] >= 0.70:  # threshold for clustering
             similarity_dict[info_i].append((info_j, sims[i, j]))
 
 # --- Cluster articles based on similarity >= 0.75 ---
