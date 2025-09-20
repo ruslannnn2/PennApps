@@ -18,6 +18,7 @@ import json
 
 
 
+
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 # NEW: Configure the Gemini API with your key
@@ -73,7 +74,7 @@ sources = {
 }
 
 # Limit number of articles per source for demo / speed
-MAX_ARTICLES = 10
+MAX_ARTICLES = 200
 
 # Fetch articles from each newspaper
 articles = []
@@ -115,12 +116,13 @@ for source_name, url in sources.items():
                 summary = generate_summary(art.text, prompt_type="article")
                 
                 identifier = (source_name, art.title, art.url)
-                articles_text.append(art.text)
+                articles.append(art.text)
                 article_info.append(identifier)
                 article_details[identifier] = {
                     "text": art.text,
                     "summary": summary
                 }
+                count += 1
 
         except (ArticleException, ArticleBinaryDataException):
             continue
