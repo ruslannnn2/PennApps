@@ -1,0 +1,7 @@
+python-dotenv
+newspaper3k
+sentence-transformers
+faiss-cpu
+numpy
+requests
+google-generativeai
