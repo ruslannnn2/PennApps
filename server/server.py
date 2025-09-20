@@ -41,10 +41,10 @@ def get_all_clusters():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-@app.route('/api/clusters/<int:cluster_number>', methods=["GET"])
-def get_cluster_by_number(cluster_number):
+@app.route('/api/clusters/<int:cluster_id>', methods=["GET"])
+def get_cluster_by_number(cluster_id):
     try:
-        result = supabase.table('clusters').select("*").eq('cluster_number', cluster_number).execute()
+        result = supabase.table('clusters').select("*").eq('cluster_id', cluster_id).execute()
         if not result.data:
             return jsonify({"error": "Cluster not found"}), 404
         return jsonify({"cluster": result.data[0]}), 200
@@ -64,20 +64,20 @@ def get_all_articles():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-@app.route('/api/clusters/<int:cluster_number>/articles', methods=["GET"])
-def get_articles_by_cluster(cluster_number):
+@app.route('/api/clusters/<int:cluster_id>/articles', methods=["GET"])
+def get_articles_by_cluster(cluster_id):
     try:
-        cluster_result = supabase.table('clusters').select("*").eq('cluster_number', cluster_number).execute()
+        cluster_result = supabase.table('clusters').select("*").eq('cluster_id', cluster_id).execute()
         if not cluster_result.data:
             return jsonify({"error": "Cluster not found"}), 404
 
         cluster = cluster_result.data[0]
 
-        articles_result = supabase.table('articles').select("*").eq('cluster_id', cluster['id']).execute()
+        articles_result = supabase.table('articles').select("*").eq('cluster_id', cluster_id).execute()
         articles = articles_result.data or []
 
         return jsonify({
-            "cluster_number": cluster_number,
+            "cluster_id": cluster_id,
             "cluster_summary": cluster.get('cluster_summary'),
             "articles": articles,
             "article_count": len(articles)
@@ -85,12 +85,10 @@ def get_articles_by_cluster(cluster_number):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/articles/<int:article_id>', methods=["GET"])
-def get_article_by_id(article_id):
+@app.route('/api/articles/title/<string:title>', methods=["GET"])
+def get_article_by_title(title):
     try:
-        result = supabase.table('articles').select(
-            "*, clusters(cluster_number, cluster_summary)"
-        ).eq('id', article_id).execute()
+        result = supabase.table('articles').select("*").eq('title', title).execute()
         if not result.data:
             return jsonify({"error": "Article not found"}), 404
 
