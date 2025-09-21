@@ -64,7 +64,9 @@ def main():
         "Politico": "https://rss.politico.com/politics-news.xml",
         "Politico - Congress": "https://rss.politico.com/congress.xml",
         "AlJazeera": "https://www.aljazeera.com/xml/rss/all.xml",
-        "Fox": "https://feeds.foxnews.com/foxnews/latest"
+        "Fox": "https://feeds.foxnews.com/foxnews/latest",
+        "CBS": "https://www.cbsnews.com/latest/rss/main",
+        "ABC": "https://abcnews.go.com/abcnews/topstories"
     }
 
     NEWSPAPER_SOURCES = {
@@ -269,5 +271,44 @@ def main():
 
     print(f"Saved {len(clusters)} clusters with AI-generated names to rawdata.json")
 
-if __name__ == "__main__":
+from apscheduler.schedulers.background import BackgroundScheduler
+import time
+
+def my_function_to_time():
     main()
+    print(f"Executing function at: {time.ctime()}")
+    time.sleep(2) # Simulate some work
+    print("Function execution complete.")
+
+def timed_execution_wrapper():
+    """
+    Wrapper function to time the execution of my_function_to_time.
+    """
+    start_time = time.time()
+    my_function_to_time()
+    end_time = time.time()
+    execution_duration = end_time - start_time
+    print(f"Execution duration: {execution_duration:.4f} seconds")
+
+# Create a scheduler
+scheduler = BackgroundScheduler()
+
+# Add the job to run every hour
+# The 'cron' trigger with hour='*' means it runs every hour at the minute it's started,
+# or you can specify a specific minute, e.g., hour='*', minute='0' for top of the hour.
+scheduler.add_job(timed_execution_wrapper, trigger='cron', hour='*')
+
+# Start the scheduler
+scheduler.start()
+
+print("Scheduler started. Function will execute every hour.")
+
+try:
+    # Keep the main thread alive so the scheduler can run in the background
+    while True:
+        time.sleep(1)
+except (KeyboardInterrupt, SystemExit):
+    # Shut down the scheduler cleanly on exit
+    scheduler.shutdown()
+    print("Scheduler shut down.")
+
