@@ -1,5 +1,4 @@
-# noogie - Unbiased News
-___
+# noogie - news through a different lens
 
 !["preview"](assets/noogie.png "Preview")
 
@@ -31,10 +30,23 @@ It helps users see the big picture of what’s happening, filtering the opinions
 * OpenAI's GPT 4o-mini for summaries
 * Supabase for storage
 
-## Previews 
-
 ## Usage
+```
+cd front-end
+npm install
+npm run dev
 
+```
+
+```
+cd server
+python -m venv
+pip install -r requirements.txt
+python app.py
+python upload_clusters.py
+python server.py
+```
+##API Endpoints
 
 ## Acknowledgements
 A special thanks to PennApps 2025.
