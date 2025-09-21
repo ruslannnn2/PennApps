@@ -17,7 +17,7 @@ It helps users see the big picture of what’s happening, filtering the opinions
 
 ## Tech Stack
 * TypeScript + React with `d3.js` for node visualization
-* Python `newspaper4k` to extract news sources
+* Python `newspaper4k` to extract news sources & `flask` for the servers
 * OpenAI's GPT 4o-mini for summaries
 * Supabase for storage
 
