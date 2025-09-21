@@ -1,10 +1,10 @@
-# Noogie - Unbiased News
+# noogie - Unbiased News
 
 A project built to collect, duplicate, cluster, and summarize breaking news stories from across the web to mitigate biases that different news sources give. 
 
 ## Overview
 
-Noogie automatically fetches articles from major outlets, groups similar stories, and generates concise AI-powered headlines.
+noogie automatically fetches articles from major outlets, groups similar stories, and generates concise AI-powered headlines.
 It helps users see the big picture of what’s happening, filtering the opinions of different news sources.
 
 ## Features
