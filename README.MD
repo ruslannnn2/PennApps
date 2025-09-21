@@ -1,4 +1,11 @@
 # noogie - Unbiased News
+___
+
+!["preview"](assets/noogie.png "Preview")
+
+---
+
+
 
 A project built to collect, duplicate, cluster, and summarize breaking news stories from across the web to mitigate biases that different news sources give. 
 
@@ -6,6 +13,8 @@ A project built to collect, duplicate, cluster, and summarize breaking news stor
 
 noogie automatically fetches articles from major outlets, groups similar stories, and generates concise AI-powered headlines.
 It helps users see the big picture of what’s happening, filtering the opinions of different news sources.
+!["preview"](assets/fullview.png "Preview")
+
 
 ## Features
 
@@ -14,6 +23,7 @@ It helps users see the big picture of what’s happening, filtering the opinions
 * Smart Deduplication – Computes sentence embeddings (sentence-transformers) and stores them in a FAISS vector index
 * Clustering & Summarization – Groups similar articles and calls OpenAI/Gemini to generate short, human-readable cluster headlines
 * Scalable Design – Supports multithreading (planned) so multiple feeds can be fetched concurrently.
+!["preview"](assets/nodes.png "Preview")
 
 ## Tech Stack
 * TypeScript + React with `d3.js` for node visualization
