@@ -2,10 +2,6 @@
 
 !["preview"](assets/noogie.png "Preview")
 
----
-
-
-
 A project built to collect, duplicate, cluster, and summarize breaking news stories from across the web to mitigate biases that different news sources give. 
 
 ## Overview
@@ -31,11 +27,10 @@ It helps users see the big picture of what’s happening, filtering the opinions
 * Supabase for storage
 
 ## Usage
-```
+``` 
 cd front-end
 npm install
 npm run dev
-
 ```
 
 ```
@@ -46,7 +41,16 @@ python app.py
 python upload_clusters.py
 python server.py
 ```
-##API Endpoints
+## API Endpoints
+- `GET` api/clusters
+- `GET` api/articles
+- `GET` api/clusters/:clusters_id/articles
+- `GET` api/clusters/:cluster_id
+- `GET` api/articles/:article_id
+- `POST` api/clusters/batch
+- `POST` api/data/bulk
+- `POST` api/clusters/:cluster_id/articles/batch
+
 
 ## Acknowledgements
 A special thanks to PennApps 2025.
