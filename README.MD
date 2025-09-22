@@ -51,9 +51,8 @@ npm run dev
 cd server
 python -m venv
 pip install -r requirements.txt
-python app.py
-python upload_clusters.py
 python server.py
+python main.py
 ```
 ## API Endpoints
 - `GET` api/clusters
