@@ -6,9 +6,8 @@ import os
 def main():
     """Run the scraper to generate JSON files, then upload to database."""
     
-    print("="*50)
     print("NEWS CLUSTERING AND UPLOAD PIPELINE")
-    print("="*50)
+    print("-"*50)
     
     try:
         # Step 1: Run app.py to generate the JSON files
