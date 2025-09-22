@@ -1,5 +1,7 @@
 # noogie - News through a different lens
 
+Won Best Design at PennApps XXVI
+
 !["preview"](assets/noogie.png "Preview")
 ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat-square&logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/-React-61DAFB?style=flat-square&logo=react&logoColor=white)
