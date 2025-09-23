@@ -1,7 +1,8 @@
-import subprocess
+from apscheduler.schedulers.background import BackgroundScheduler
 import time
 import sys
 import os
+import subprocess
 
 def main():
     """Run the scraper to generate JSON files, then upload to database."""
@@ -40,7 +41,7 @@ def main():
         
         print("Both JSON files found")
         
-        # Step 3: Run upload_clusters.py to upload data to database
+        # Step 3: Run transform_and_upload.py to upload data to database
         print("\n3. Running transform_and_upload.py to upload data to database...")
         print("-"*50)
         
@@ -78,13 +79,37 @@ def main():
     except FileNotFoundError as e:
         print(f"\nFile not found: {e}")
         print("   Make sure app.py and transform_and_upload.py are in the current directory")
-        sys.exit(1)
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
-        sys.exit(1)
     except Exception as e:
         print(f"\nUnexpected error: {e}")
-        sys.exit(1)
+
+# ---- Scheduler Part ----
+def my_function_to_time():
+    main()
+    print(f"Executing function at: {time.ctime()}")
+    time.sleep(2)  # Simulate some work
+    print("Function execution complete.")
+
+def timed_execution_wrapper():
+    start_time = time.time()
+    my_function_to_time()
+    end_time = time.time()
+    execution_duration = end_time - start_time
+    print(f"Execution duration: {execution_duration:.4f} seconds")
 
 if __name__ == "__main__":
-    main()
+    scheduler = BackgroundScheduler()
+    
+    # Run at the top of every hour
+    scheduler.add_job(timed_execution_wrapper, trigger='cron', minute='0')
+    
+    scheduler.start()
+    print("Scheduler started. Function will execute every hour.")
+    
+    try:
+        while True:
+            time.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        scheduler.shutdown()
+        print("Scheduler shut down.")
