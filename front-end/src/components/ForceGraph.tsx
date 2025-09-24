@@ -41,6 +41,8 @@ type ForceGraphProps = {
   linkStroke?: string;
   chargeStrength?: number;
   linkOpacity?: number;
+  centerOnClusterId?: number | null;
+  centerScale?: number;
   onNodeClick?: (d: NodeDatum) => void;
 };
 
@@ -95,6 +97,8 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
   nodeStrokeWidth,
   linkStroke = "#FFF",
   linkOpacity = 1,
+  centerOnClusterId,
+  centerScale,
   onNodeClick,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -108,6 +112,39 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
   const degScaleRef = useRef<d3.ScaleLinear<number, number>>(d3.scaleLinear<number, number>().domain([0, 1]).range([minRadius, maxRadius]));
   const defaultColorRef = useRef<d3.ScaleOrdinal<string, string>>(d3.scaleOrdinal(d3.schemeDark2));
   const onNodeClickRef = useRef<ForceGraphProps["onNodeClick"]>(onNodeClick);
+  const svgRef = useRef<d3.Selection<SVGSVGElement, unknown, null, undefined> | null>(null);
+  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
+  //smoothly center/zoom on a given cluster id when requested
+  useEffect(() => {
+    if (centerOnClusterId == null) return;
+    const sim = simulationRef.current;
+    const svg = svgRef.current;
+    const zoomB = zoomRef.current;
+    if (!sim || !svg || !zoomB) return;
+
+    const nodesArr = sim.nodes() as NodeDatum[];
+    const target = nodesArr.find(
+      (n) => n.type === "cluster" && n.cluster_id === centerOnClusterId
+    );
+    if (!target || target.x == null || target.y == null) return;
+
+    const k = typeof centerScale === "number" ? centerScale : 1.8;
+    // Because the SVG viewBox is centered at (-W/2, -H/2), the viewport center is (0, 0)
+    // in the graph coordinate space. Therefore, to place (target.x, target.y) at the
+    // center, use translate(-k*x, -k*y) followed by scale(k).
+    const t = d3.zoomIdentity
+      .translate(-k * (target.x ?? 0), -k * (target.y ?? 0))
+      .scale(k);
+
+  // d3's TS types don't expose calling zoom.transform on a transition directly.
+  // This helper preserves type-safety elsewhere while applying the canonical pattern.
+  const transition = svg.transition().duration(500).ease(d3.easeCubicOut);
+  transition.call(zoomB.transform, t);
+  }, [centerOnClusterId, centerScale, size.w, size.h, fitParent, width, height]);
+
+
   useEffect(() => { onNodeClickRef.current = onNodeClick; }, [onNodeClick]);
 
   useEffect(() => {
@@ -157,12 +194,15 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .attr("preserveAspectRatio", "xMidYMid meet")
       .attr("style", "display:block; width:100%; height:100%; background: transparent;");
 
-    const g = svg.append("g");
+  const g = svg.append("g").attr("class", "transition-transform duration-500 ease-out");
+  svgRef.current = svg;
+  gRef.current = g;
 
     const zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 8])
       .on("zoom", (event) => g.attr("transform", event.transform.toString()));
+    zoomRef.current = zoomBehavior;
 
     if (zoom) svg.call(zoomBehavior);
     svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(0, 0).scale(1));
@@ -183,7 +223,9 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .data(N)
       .join("circle")
       .on("click", (_, d) => onNodeClickRef.current?.(d))
-      .style("cursor", "pointer");
+      .style("cursor", "pointer")
+      // Tailwind transitions for smooth color changes (includes fill/stroke)
+      .attr("class", "transition-colors duration-300 ease-in-out");
     nodeSelRef.current = node as d3.Selection<SVGCircleElement, NodeDatum, SVGGElement, unknown>;
 
     // initial visual attrs
@@ -193,9 +235,9 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
         : (d: NodeDatum) => (sizeByDegree ? degScaleRef.current(degreeMapRef.current.get(String(d.id)) ?? 0) : (nodeRadius as number));
     node
       .attr("r", (d) => r(d))
-      .attr("fill", (d) => defaultColorRef.current(String(d.group!)))
-      .attr("stroke", "")
-      .attr("stroke-width", 0.5);
+      .style("fill", (d) => (nodeFill ? nodeFill(d) : defaultColorRef.current(String(d.group!))))
+      .style("stroke", (d) => (nodeStroke ? (nodeStroke(d) ?? "") : ""))
+      .attr("stroke-width", (d) => (nodeStrokeWidth ? ((nodeStrokeWidth(d) ?? 0.5) as number) : 0.5));
 
     (nodeSelRef.current as d3.Selection<SVGCircleElement, NodeDatum, SVGGElement, unknown>).call(
       d3
@@ -218,23 +260,23 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
         })
     );
 
-    const label = showLabels
-      ? g
-          .append("g")
-          .attr("font-family", "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial")
-          .attr("font-size", 12)
-          .attr("fill", "#ddd")
-          .attr("pointer-events", "none")
-          .selectAll("text")
-          .data(N)
-          .join("text")
-          .text((d) => String(d.id))
-      : null;
-    if (label) {
-      labelSelRef.current = label as d3.Selection<SVGTextElement, NodeDatum, SVGGElement, unknown>;
-    } else {
-      labelSelRef.current = null;
-    }
+    // const label = showLabels
+    //   ? g
+    //       .append("g")
+    //       .attr("font-family", "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial")
+    //       .attr("font-size", 12)
+    //       .attr("fill", "#ddd")
+    //       .attr("pointer-events", "none")
+    //       .selectAll("text")
+    //       .data(N)
+    //       .join("text")
+    //       .text((d) => String(d.id))
+    //   : null;
+    // if (label) {
+    //   labelSelRef.current = label as d3.Selection<SVGTextElement, NodeDatum, SVGGElement, unknown>;
+    // } else {
+    //   labelSelRef.current = null;
+    // }
 
     const simulation = d3
       .forceSimulation(N)
@@ -278,17 +320,17 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, links, width, height, showLabels, zoom, linkStroke, linkOpacity, chargeStrength, sizeByDegree, minRadius, maxRadius, fitParent, size.w, size.h]);
 
-  // Lightweight updates: visual styling
+  //visual styling
   useEffect(() => {
     const node = nodeSelRef.current;
     if (!node) return;
     node
-      .attr("fill", (d) => (nodeFill ? nodeFill(d) : defaultColorRef.current(String(d.group!))))
-      .attr("stroke", (d) => nodeStroke?.(d) ?? "")
+      .style("fill", (d) => (nodeFill ? nodeFill(d) : defaultColorRef.current(String(d.group!))))
+      .style("stroke", (d) => nodeStroke?.(d) ?? "")
       .attr("stroke-width", (d) => ((nodeStrokeWidth?.(d) ?? 0.5) as number));
   }, [nodeFill, nodeStroke, nodeStrokeWidth]);
 
-  // Lightweight updates: radius
+  // radius
   useEffect(() => {
     const node = nodeSelRef.current;
     if (!node) return;

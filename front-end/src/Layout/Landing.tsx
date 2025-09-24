@@ -19,7 +19,8 @@ const Landing = () => {
     const [articles, setArticles] = useState<Article[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [focusedNode, setFocusedNode] = useState<NodeDatum | null>(null);
+  const [focusedNode, setFocusedNode] = useState<NodeDatum | null>(null);
+  const [selectedClusterId, setSelectedClusterId] = useState<number | null>(null);
 
     useEffect(() => {
       let cancelled = false;
@@ -137,6 +138,7 @@ const Landing = () => {
                           article_summary: cluster.cluster_summary,
                         };
                         setFocusedNode(node);
+                        setSelectedClusterId(cluster.cluster_id);
                       }}
                     >
                       <span
@@ -163,19 +165,40 @@ const Landing = () => {
                             ) : loading ? (
                                 <div className="p-4 text-gray-300">Loading graph…</div>
                             ) : (
-                <ForceGraph
+                                <ForceGraph
                                     nodes={nodes}
                                     links={links}
                                     chargeStrength={-60}
                                     width={1100}
                                     height={1000}
-                                    onNodeClick={(node) => setFocusedNode(node)}
+                                    onNodeClick={(node) => {
+                                      setFocusedNode(node);
+                                      if (node.type === "cluster" && node.cluster_id != null) {
+                                        setSelectedClusterId(node.cluster_id);
+                                      }
+                                    }}
                                     showLabels={false}
                                     zoom
-                  // Color clusters via schemeDark2; articles use a soft blue
-                  nodeFill={(d) => (d.type === "cluster" ? clusterColor(d.cluster_id) : "#6C8AE4")}
-                                    //cluster nodes slightly smaller than before
-                                    nodeRadius={(d) => (d.type === "cluster" ? 12 : 6)}
+                                    centerOnClusterId={selectedClusterId}
+                                    centerScale={1.8}
+                  // Articles always blue; selected cluster white; others schemeDark2
+                  nodeFill={(d) =>
+                    d.type === "article"
+                      ? "#6C8AE4"
+                      : (selectedClusterId != null && d.cluster_id === selectedClusterId
+                          ? "#FFFFFF"
+                          : clusterColor(d.cluster_id))
+                  }
+                  //cluster nodes slightly smaller than before, cluster nodes grow when clicked
+                  nodeRadius={(d) => {
+                    if (d.type === "cluster") {
+                      const base = 12;
+                      const selected = 18; // grow when selected
+                      return d.cluster_id != null && d.cluster_id === selectedClusterId ? selected : base;
+                    } else {
+                      return 6;
+                    }
+                  }}  
                                     sizeByDegree={false}
                                 />
                             )}
@@ -184,7 +207,7 @@ const Landing = () => {
                             <div className="w-full h-full">
                               <Carousel
                                 items={articles.map((a) => ({ id: a.article_id, title: a.title ?? null, source: a.source ?? null }))}
-                                durationSeconds={360}
+                                durationSeconds={600}
                                 onItemClick={(it) => {
                                   const art = articles.find((a) => a.article_id === it.id);
                                   if (!art) return;
