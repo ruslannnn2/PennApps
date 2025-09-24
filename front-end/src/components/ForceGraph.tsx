@@ -99,6 +99,16 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: width, h: height });
+  // persistent refs for selections and simulation
+  const nodeSelRef = useRef<d3.Selection<SVGCircleElement, NodeDatum, SVGGElement, unknown> | null>(null);
+  const linkSelRef = useRef<d3.Selection<SVGLineElement, LinkDatum, SVGGElement, unknown> | null>(null);
+  const labelSelRef = useRef<d3.Selection<SVGTextElement, NodeDatum, SVGGElement, unknown> | null>(null);
+  const simulationRef = useRef<d3.Simulation<NodeDatum, LinkDatum> | null>(null);
+  const degreeMapRef = useRef<Map<string, number>>(new Map());
+  const degScaleRef = useRef<d3.ScaleLinear<number, number>>(d3.scaleLinear<number, number>().domain([0, 1]).range([minRadius, maxRadius]));
+  const defaultColorRef = useRef<d3.ScaleOrdinal<string, string>>(d3.scaleOrdinal(d3.schemeDark2));
+  const onNodeClickRef = useRef<ForceGraphProps["onNodeClick"]>(onNodeClick);
+  useEffect(() => { onNodeClickRef.current = onNodeClick; }, [onNodeClick]);
 
   useEffect(() => {
     if (fitParent && containerRef.current) {
@@ -115,14 +125,14 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
     }
   }, [fitParent]);
 
+  // Mount/rebuild only when structural inputs change
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Defensive copies (D3 mutates nodes/links with x,y,vx,vy)
     const N = computeComponents(nodes.map((d) => ({ ...d })), links);
     const L = links.map((d) => ({ ...d }));
 
-    // Compute degree (number of connections) per node id
+    // degree + scale
     const degree = new Map<string, number>();
     for (const l of L) {
       const s = typeof l.source === "string" ? l.source : String((l.source as NodeDatum).id);
@@ -130,21 +140,10 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       degree.set(s, (degree.get(s) ?? 0) + 1);
       degree.set(t, (degree.get(t) ?? 0) + 1);
     }
+    degreeMapRef.current = degree;
     const maxDeg = N.reduce((m, n) => Math.max(m, degree.get(String(n.id)) ?? 0), 0);
-    const degScale = d3
-      .scaleLinear()
-      .domain([0, Math.max(1, maxDeg)])
-      .range([minRadius, maxRadius]);
+    degScaleRef.current = d3.scaleLinear<number, number>().domain([0, Math.max(1, maxDeg)]).range([minRadius, maxRadius]);
 
-    const color = d3.scaleOrdinal(d3.schemeDark2);
-
-    //Final radius function: prefer user function, else scale by degree (if enabled), else constant
-    const r =
-      typeof nodeRadius === "function"
-        ? nodeRadius
-        : (d: NodeDatum) => (sizeByDegree ? degScale(degree.get(String(d.id)) ?? 0) : (nodeRadius as number));
-
-    //root SVG
     const W = fitParent ? size.w : width;
     const H = fitParent ? size.h : height;
     if (!W || !H) return;
@@ -154,27 +153,20 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .append("svg")
       .attr("width", "100%")
       .attr("height", "100%")
-      // Centered coordinate system like the Observable disjoint example
       .attr("viewBox", `${-W / 2} ${-H / 2} ${W} ${H}`)
       .attr("preserveAspectRatio", "xMidYMid meet")
       .attr("style", "display:block; width:100%; height:100%; background: transparent;");
 
-    // Zoomable group
     const g = svg.append("g");
-    
+
     const zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([1, 8])
+      .scaleExtent([0.1, 8])
       .on("zoom", (event) => g.attr("transform", event.transform.toString()));
 
-    svg.call(zoomBehavior);
+    if (zoom) svg.call(zoomBehavior);
+    svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(0, 0).scale(1));
 
-   
-    const k = 1;        //zoom scale
-    const tx = 0, ty = 0;  // set the x, y of initial viewport
-    svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
-
-    //links
     const link = g
       .append("g")
       .attr("stroke", linkStroke)
@@ -183,48 +175,49 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
       .data(L)
       .join("line")
       .attr("stroke-width", (d) => Math.sqrt(d.value ?? 1));
+    linkSelRef.current = link as d3.Selection<SVGLineElement, LinkDatum, SVGGElement, unknown>;
 
-    //nodes
     const node = g
       .append("g")
-      // Per-node stroke is applied on the circle elements below
       .selectAll("circle")
       .data(N)
       .join("circle")
-      .on("click", (_, d) => onNodeClick?.(d)) // click hook
-      .style("cursor", "pointer")
-  .attr("r", (d) => r(d))
-  .attr("fill", (d) => (nodeFill ? nodeFill(d) : color(String(d.group!))))
-  .attr("stroke", (d) => {
-    const s = nodeStroke?.(d);
-    return s ?? "";
-  })
-  .attr("stroke-width", (d) => {
-    const w = nodeStrokeWidth?.(d);
-    return (w ?? 0.5) as number;
-  });
+      .on("click", (_, d) => onNodeClickRef.current?.(d))
+      .style("cursor", "pointer");
+    nodeSelRef.current = node as d3.Selection<SVGCircleElement, NodeDatum, SVGGElement, unknown>;
 
-    (node as d3.Selection<SVGCircleElement, NodeDatum, SVGGElement, unknown>)
-      .call(
-        d3
-          .drag<SVGCircleElement, NodeDatum>()
-          .on("start", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on("drag", (event, d) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on("end", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          })
-  );
+    // initial visual attrs
+    const r =
+      typeof nodeRadius === "function"
+        ? nodeRadius
+        : (d: NodeDatum) => (sizeByDegree ? degScaleRef.current(degreeMapRef.current.get(String(d.id)) ?? 0) : (nodeRadius as number));
+    node
+      .attr("r", (d) => r(d))
+      .attr("fill", (d) => defaultColorRef.current(String(d.group!)))
+      .attr("stroke", "")
+      .attr("stroke-width", 0.5);
 
-    // Labels (optional)
+    (nodeSelRef.current as d3.Selection<SVGCircleElement, NodeDatum, SVGGElement, unknown>).call(
+      d3
+        .drag<SVGCircleElement, NodeDatum>()
+        .on("start", (event, d) => {
+          const sim = simulationRef.current!;
+          if (!event.active) sim.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on("drag", (event, d) => {
+          d.fx = event.x;
+          d.fy = event.y;
+        })
+        .on("end", (event, d) => {
+          const sim = simulationRef.current!;
+          if (!event.active) sim.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        })
+    );
+
     const label = showLabels
       ? g
           .append("g")
@@ -237,40 +230,84 @@ const ForceGraph: React.FC<ForceGraphProps> = ({
           .join("text")
           .text((d) => String(d.id))
       : null;
+    if (label) {
+      labelSelRef.current = label as d3.Selection<SVGTextElement, NodeDatum, SVGGElement, unknown>;
+    } else {
+      labelSelRef.current = null;
+    }
 
-    // Simulation
     const simulation = d3
-    .forceSimulation(N)
+      .forceSimulation(N)
       .force("link", d3.forceLink<NodeDatum, LinkDatum>(L).id((d) => d.id))
-    .force("charge", d3.forceManyBody().strength(chargeStrength))
-    // Disjoint behavior: light centering toward (0,0) due to centered viewBox
-    .force("x", d3.forceX())
-    .force("y", d3.forceY());
+      .force("charge", d3.forceManyBody().strength(chargeStrength))
+      .force("x", d3.forceX())
+      .force("y", d3.forceY());
 
-        simulation.on("tick", () => {
-        link
-            .attr("x1", (d) => (typeof d.source === "object" ? d.source.x ?? 0 : 0))
-            .attr("y1", (d) => (typeof d.source === "object" ? d.source.y ?? 0 : 0))
-            .attr("x2", (d) => (typeof d.target === "object" ? d.target.x ?? 0 : 0))
-            .attr("y2", (d) => (typeof d.target === "object" ? d.target.y ?? 0 : 0));
+    simulation.on("tick", () => {
+      link
+        .attr("x1", (d) => (typeof d.source === "object" ? d.source.x ?? 0 : 0))
+        .attr("y1", (d) => (typeof d.source === "object" ? d.source.y ?? 0 : 0))
+        .attr("x2", (d) => (typeof d.target === "object" ? d.target.x ?? 0 : 0))
+        .attr("y2", (d) => (typeof d.target === "object" ? d.target.y ?? 0 : 0));
 
-        node
-          .attr("cx", (d) => d.x ?? 0)
-          .attr("cy", (d) => d.y ?? 0);
+      nodeSelRef.current!.attr("cx", (d) => d.x ?? 0).attr("cy", (d) => d.y ?? 0);
 
-        if (label) {
-            label
-              .attr("x", (d) => (d.x ?? 0) + r(d) + 4)
-              .attr("y", (d) => d.y ?? 0);
-        }
-        });
+      if (labelSelRef.current) {
+        const getR = (d: NodeDatum) =>
+          typeof nodeRadius === "function"
+            ? (nodeRadius as (d: NodeDatum) => number)(d)
+            : sizeByDegree
+            ? degScaleRef.current(degreeMapRef.current.get(String(d.id)) ?? 0)
+            : (nodeRadius as number);
+        labelSelRef.current
+          .attr("x", (d) => (d.x ?? 0) + getR(d) + 4)
+          .attr("y", (d) => d.y ?? 0);
+      }
+    });
 
-    // Cleanup
+    simulationRef.current = simulation;
+
     return () => {
       simulation.stop();
       svg.remove();
+      simulationRef.current = null;
+      nodeSelRef.current = null;
+      linkSelRef.current = null;
+      labelSelRef.current = null;
     };
-  }, [nodes, links, width, height, showLabels, zoom, nodeRadius, nodeFill, nodeStroke, nodeStrokeWidth, linkStroke, linkOpacity, onNodeClick, chargeStrength, sizeByDegree, minRadius, maxRadius, fitParent, size.w, size.h]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, links, width, height, showLabels, zoom, linkStroke, linkOpacity, chargeStrength, sizeByDegree, minRadius, maxRadius, fitParent, size.w, size.h]);
+
+  // Lightweight updates: visual styling
+  useEffect(() => {
+    const node = nodeSelRef.current;
+    if (!node) return;
+    node
+      .attr("fill", (d) => (nodeFill ? nodeFill(d) : defaultColorRef.current(String(d.group!))))
+      .attr("stroke", (d) => nodeStroke?.(d) ?? "")
+      .attr("stroke-width", (d) => ((nodeStrokeWidth?.(d) ?? 0.5) as number));
+  }, [nodeFill, nodeStroke, nodeStrokeWidth]);
+
+  // Lightweight updates: radius
+  useEffect(() => {
+    const node = nodeSelRef.current;
+    if (!node) return;
+    degScaleRef.current.range([minRadius, maxRadius]);
+    const r =
+      typeof nodeRadius === "function"
+        ? nodeRadius
+        : (d: NodeDatum) => (sizeByDegree ? degScaleRef.current(degreeMapRef.current.get(String(d.id)) ?? 0) : (nodeRadius as number));
+    node.attr("r", (d) => r(d));
+    if (labelSelRef.current) {
+      const getR = (d: NodeDatum) =>
+        typeof nodeRadius === "function"
+          ? (nodeRadius as (d: NodeDatum) => number)(d)
+          : sizeByDegree
+          ? degScaleRef.current(degreeMapRef.current.get(String(d.id)) ?? 0)
+          : (nodeRadius as number);
+      labelSelRef.current.attr("x", (d) => (d.x ?? 0) + getR(d) + 4);
+    }
+  }, [nodeRadius, sizeByDegree, minRadius, maxRadius]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 };

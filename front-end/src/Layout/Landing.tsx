@@ -19,17 +19,7 @@ const Landing = () => {
     const [articles, setArticles] = useState<Article[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedClusters, setSelectedClusters] = useState<Set<number>>(new Set());
-  const [focusedNode, setFocusedNode] = useState<NodeDatum | null>(null);
-
-    const toggleCluster = (clusterId: number) => {
-      setSelectedClusters((prev) => {
-        const next = new Set(prev);
-        if (next.has(clusterId)) next.delete(clusterId);
-        else next.add(clusterId);
-        return next;
-      });
-    };
+    const [focusedNode, setFocusedNode] = useState<NodeDatum | null>(null);
 
     useEffect(() => {
       let cancelled = false;
@@ -133,20 +123,25 @@ const Landing = () => {
             <div className="p-4 flex flex-col gap-3 h-full no-scrollbar overflow-auto">
               <div className="flex flex-col gap-2 pr-1 no-scrollbar">
                 {clusters.map((cluster) => {
-                  const active = selectedClusters.has(cluster.cluster_id);
-                  const textColor = active ? "#FFFFFF" : clusterColor(cluster.cluster_id);
+                  const textColor = clusterColor(cluster.cluster_id) as string;
                   return (
                     <Button
                       key={cluster.cluster_id}
-                      className={[
-                        "mix-blend-multiply text-semibold",
-                        active ? "bg-white/20 ring-2 ring-white shadow-white/30" : "bg-black/10",
-                      ].join(" ")}
-                      onClick={() => toggleCluster(cluster.cluster_id)}
+                      className={["mix-blend-multiply text-semibold bg-black/10"].join(" ")}
+                      onClick={() => {
+                        const node: NodeDatum = {
+                          id: `cluster-${cluster.cluster_id}`,
+                          type: "cluster",
+                          cluster_id: cluster.cluster_id,
+                          title: cluster.cluster_title ?? undefined,
+                          article_summary: cluster.cluster_summary,
+                        };
+                        setFocusedNode(node);
+                      }}
                     >
                       <span
                         style={{
-                          color: textColor as string,
+                          color: textColor,
                         }}
                       >
                         {cluster.cluster_title ?? `Cluster ${cluster.cluster_id}`}
@@ -168,7 +163,7 @@ const Landing = () => {
                             ) : loading ? (
                                 <div className="p-4 text-gray-300">Loading graph…</div>
                             ) : (
-                                <ForceGraph
+                <ForceGraph
                                     nodes={nodes}
                                     links={links}
                                     chargeStrength={-60}
@@ -177,23 +172,8 @@ const Landing = () => {
                                     onNodeClick={(node) => setFocusedNode(node)}
                                     showLabels={false}
                                     zoom
-                                    // Color clusters: white when selected, else schemeDark2; articles use a soft blue
-                                    nodeFill={(d) =>
-                                        d.type === "cluster"
-                                            ? (selectedClusters.has(d.cluster_id as number) ? "#FFFFFF" : clusterColor(d.cluster_id))
-                                            : "#6C8AE4"
-                                    }
-                                    // thick red outline for selected clusters
-                                    nodeStroke={(d) =>
-                                        d.type === "cluster" && selectedClusters.has(d.cluster_id as number)
-                                            ? "#ff3333"
-                                            : undefined
-                                    }
-                                    nodeStrokeWidth={(d) =>
-                                        d.type === "cluster" && selectedClusters.has(d.cluster_id as number)
-                                            ? 3
-                                            : 0.5
-                                    }
+                  // Color clusters via schemeDark2; articles use a soft blue
+                  nodeFill={(d) => (d.type === "cluster" ? clusterColor(d.cluster_id) : "#6C8AE4")}
                                     //cluster nodes slightly smaller than before
                                     nodeRadius={(d) => (d.type === "cluster" ? 12 : 6)}
                                     sizeByDegree={false}
